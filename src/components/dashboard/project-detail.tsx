@@ -41,6 +41,9 @@ type Connection = {
   role: string;
   password: string;
   database: string;
+  host: string;
+  port: number;
+  connectionUri: string;
   pooled: boolean;
 };
 
@@ -132,12 +135,16 @@ export function ProjectDetailView({
   const directConn = activeBranch?.connections.find(c => !c.pooled);
   const pooledConn = activeBranch?.connections.find(c => c.pooled);
 
-  const hostname = `ep-${project.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${project.region}.neondb.dev`;
+  // Use the real connectionUri stored when the database was provisioned.
+  // Falls back to a placeholder URI if the database isn't provisioned yet.
+  const hostname = directConn?.host || `${project.region}.neondb.dev`;
+  const isProvisioned = directConn && directConn.database !== 'neondb';
 
-  const buildUri = (c: Connection | undefined, pooled: boolean) => {
+  const buildUri = (c: Connection | undefined, _pooled: boolean) => {
     if (!c) return '';
-    const host = pooled ? hostname.replace('ep-', 'ep-pooled-') : hostname;
-    return `postgresql://${c.role}:${c.password}@${host}/${c.database}?sslmode=require`;
+    if (c.connectionUri) return c.connectionUri;
+    // Fallback placeholder for non-provisioned databases
+    return `postgresql://${c.role}:${c.password}@${hostname}:${c.port || 5432}/${c.database}?sslmode=require`;
   };
 
   return (
@@ -272,12 +279,12 @@ export function ProjectDetailView({
 
             {/* Raw params */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-border">
-              <ParamField label="Host" value={hostname} />
-              <ParamField label="Port" value="5432" />
+              <ParamField label="Host" value={directConn?.host || hostname} />
+              <ParamField label="Port" value={String(directConn?.port || 5432)} />
               <ParamField label="Database" value={directConn?.database || 'neondb'} />
               <ParamField label="User" value={directConn?.role || 'neondb'} />
               <ParamField label="Password" value={directConn?.password || ''} mono />
-              <ParamField label="SSL Mode" value="require" />
+              <ParamField label="SSL Mode" value="disable" />
             </div>
           </Card>
 

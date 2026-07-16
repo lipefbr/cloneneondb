@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser, generateDbPassword, generateProjectSlug } from '@/lib/auth';
+import { getCurrentUser, generateProjectSlug } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { provisionDatabase, ProvisionedDb } from '@/lib/postgres-admin';
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
@@ -18,41 +19,63 @@ export async function POST(req: NextRequest) {
         userId: user.id,
         region: region || 'us-east-1',
         pgVersion: pgVersion || '16',
-        status: 'active',
+        status: 'creating',
       },
     });
 
-    // Create main branch with connection strings
+    // Create main branch
     const branch = await db.branch.create({
       data: {
         projectId: project.id,
         name: 'main',
         isDefault: true,
-        status: 'ready',
+        status: 'creating',
       },
     });
 
-    const password = generateDbPassword();
+    // Provision real Postgres database + role
+    let provisioned: ProvisionedDb;
+    try {
+      provisioned = await provisionDatabase(`${project.id}-${slug}`);
+    } catch (e: any) {
+      // Rollback: delete the project + branch
+      await db.project.delete({ where: { id: project.id } });
+      return NextResponse.json({
+        error: `Falha ao provisionar banco: ${e.message}`,
+      }, { status: 500 });
+    }
+
+    // Save direct connection
     await db.connection.create({
       data: {
         branchId: branch.id,
-        role: 'neondb',
-        password,
-        database: 'neondb',
+        role: provisioned.role,
+        password: provisioned.password,
+        database: provisioned.database,
+        host: provisioned.host,
+        port: provisioned.port,
+        connectionUri: provisioned.connectionUri,
         pooled: false,
       },
     });
 
-    const pooledPassword = generateDbPassword();
+    // Save pooled connection (same host in our setup)
     await db.connection.create({
       data: {
         branchId: branch.id,
-        role: 'neondb',
-        password: pooledPassword,
-        database: 'neondb',
+        role: provisioned.role,
+        password: provisioned.password,
+        database: provisioned.database,
+        host: provisioned.host,
+        port: provisioned.port,
+        connectionUri: provisioned.pooledConnectionUri,
         pooled: true,
       },
     });
+
+    // Mark as ready
+    await db.project.update({ where: { id: project.id }, data: { status: 'active' } });
+    await db.branch.update({ where: { id: branch.id }, data: { status: 'ready' } });
 
     await db.activityLog.create({
       data: {
@@ -63,7 +86,12 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ project, branch, slug });
+    return NextResponse.json({
+      project: { ...project, status: 'active' },
+      branch: { ...branch, status: 'ready' },
+      slug,
+      connectionUri: provisioned.connectionUri,
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

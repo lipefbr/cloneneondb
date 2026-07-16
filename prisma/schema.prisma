@@ -57,15 +57,18 @@ model Branch {
 }
 
 model Connection {
-  id         String   @id @default(cuid())
-  branchId   String
-  role       String   @default("neondb")
-  password   String
-  database   String   @default("neondb")
-  pooled     Boolean  @default(false)
-  createdAt  DateTime @default(now())
+  id            String   @id @default(cuid())
+  branchId      String
+  role          String   @default("neondb")    // real Postgres role name
+  password      String                            // real Postgres password
+  database      String   @default("neondb")    // real Postgres database name
+  host          String   @default("localhost")
+  port          Int      @default(5432)
+  connectionUri String                          // full postgresql:// URI
+  pooled        Boolean  @default(false)
+  createdAt     DateTime @default(now())
 
-  branch     Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  branch        Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
 }
 
 model ApiKey {
