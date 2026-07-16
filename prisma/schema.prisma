@@ -1,0 +1,92 @@
+// Database hosting platform schema (neon.tech-style)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  name         String
+  passwordHash String
+  plan         String     @default("free") // free | pro | enterprise
+  avatarUrl    String?
+  company      String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  projects     Project[]
+  apiKeys      ApiKey[]
+  activities   ActivityLog[]
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  userId      String
+  region      String   @default("us-east-1")
+  pgVersion   String   @default("16")
+  size        String   @default("0 MB")
+  status      String   @default("active") // active | creating | paused
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branches    Branch[]
+  activities  ActivityLog[]
+}
+
+model Branch {
+  id              String   @id @default(cuid())
+  projectId       String
+  name            String
+  parentBranchId  String?
+  isDefault       Boolean  @default(false)
+  status          String   @default("ready")
+  createdAt       DateTime @default(now())
+
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent          Branch?  @relation("BranchParent", fields: [parentBranchId], references: [id])
+  children        Branch[] @relation("BranchParent")
+  connections     Connection[]
+}
+
+model Connection {
+  id         String   @id @default(cuid())
+  branchId   String
+  role       String   @default("neondb")
+  password   String
+  database   String   @default("neondb")
+  pooled     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  branch     Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+}
+
+model ApiKey {
+  id        String   @id @default(cuid())
+  name      String
+  key       String   @unique
+  userId    String
+  createdAt DateTime @default(now())
+  lastUsedAt DateTime?
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  target    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project? @relation(fields: [projectId], references: [id])
+  projectId String?
+}
