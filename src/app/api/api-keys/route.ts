@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser, generateApiKey } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { getQuota } from '@/lib/quotas';
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -21,6 +22,15 @@ export async function POST(req: Request) {
 
   const { name } = await req.json();
   if (!name) return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 });
+
+  // Check quota
+  const quota = getQuota(user.plan);
+  const existingCount = await db.apiKey.count({ where: { userId: user.id } });
+  if (existingCount >= quota.maxApiKeys) {
+    return NextResponse.json({
+      error: `Limite de API keys atingido: ${quota.maxApiKeys}. Faça upgrade para criar mais.`,
+    }, { status: 403 });
+  }
 
   const key = await db.apiKey.create({
     data: {

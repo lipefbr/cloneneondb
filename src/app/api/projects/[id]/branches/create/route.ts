@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { provisionDatabase, cloneDatabase } from '@/lib/postgres-admin';
+import { getQuota } from '@/lib/quotas';
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -16,6 +17,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { name, parentBranchId } = await req.json();
   if (!name) return NextResponse.json({ error: 'Nome do branch é obrigatório' }, { status: 400 });
+
+  // Check branch quota
+  const quota = getQuota(user.plan);
+  if (project.branches.length >= quota.maxBranchesPerProject) {
+    return NextResponse.json({
+      error: `Limite de branches por projeto atingido: ${quota.maxBranchesPerProject}. Faça upgrade para criar mais.`,
+    }, { status: 403 });
+  }
 
   const branch = await db.branch.create({
     data: {

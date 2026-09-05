@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser, generateProjectSlug } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { provisionDatabase, ProvisionedDb } from '@/lib/postgres-admin';
+import { getQuota, getPlanLabel } from '@/lib/quotas';
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
@@ -10,6 +11,15 @@ export async function POST(req: NextRequest) {
   try {
     const { name, region, pgVersion } = await req.json();
     if (!name) return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 });
+
+    // Check quota
+    const quota = getQuota(user.plan);
+    const existingCount = await db.project.count({ where: { userId: user.id } });
+    if (existingCount >= quota.maxProjects) {
+      return NextResponse.json({
+        error: `Limite do plano ${getPlanLabel(user.plan)} atingido: ${quota.maxProjects} projeto(s). Faça upgrade para criar mais.`,
+      }, { status: 403 });
+    }
 
     const slug = generateProjectSlug(name);
 

@@ -15,6 +15,7 @@ model User {
   name         String
   passwordHash String
   plan         String     @default("free") // free | pro | enterprise
+  role         String     @default("user") // user | admin
   avatarUrl    String?
   company      String?
   createdAt    DateTime   @default(now())

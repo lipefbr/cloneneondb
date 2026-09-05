@@ -169,8 +169,39 @@ info "Configurando $PG_CONF para escutar em todas as interfaces..."
 sed -i "s/^#listen_addresses = .*/listen_addresses = '*'  # neondb/" "$PG_CONF"
 sed -i "s/^#password_encryption = .*/password_encryption = scram-sha-256/" "$PG_CONF"
 
+# Detect RAM and optimize for ~200 databases target
+TOTAL_RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+TOTAL_RAM_GB=$((TOTAL_RAM_KB / 1024 / 1024))
+SHARED_BUFFERS_MB=$((TOTAL_RAM_KB / 1024 / 4))    # 25% of RAM
+EFFECTIVE_CACHE_MB=$((TOTAL_RAM_KB / 1024 * 3 / 4)) # 75% of RAM
+info "RAM detectada: ${TOTAL_RAM_GB}GB — otimizando para ~200 bancos"
+info "  shared_buffers = ${SHARED_BUFFERS_MB}MB"
+info "  effective_cache_size = ${EFFECTIVE_CACHE_MB}MB"
+
+# Append NeonDB tuning block (idempotent — check marker)
+if ! grep -q "neondb-tuning" "$PG_CONF"; then
+  cat >> "$PG_CONF" <<EOF
+
+# neondb-tuning: optimized for ~200 databases on ${TOTAL_RAM_GB}GB RAM
+max_connections = 200
+shared_buffers = ${SHARED_BUFFERS_MB}MB
+effective_cache_size = ${EFFECTIVE_CACHE_MB}MB
+work_mem = 16MB
+maintenance_work_mem = 256MB
+max_files_per_process = 1000
+wal_buffers = 16MB
+random_page_cost = 1.1
+effective_io_concurrency = 200
+log_min_duration_statement = 1000
+log_connections = off
+log_disconnections = off
+track_activities = on
+track_counts = on
+EOF
+fi
+
 systemctl restart postgresql
-ok "PostgreSQL configurado: conexões externas habilitadas (md5)"
+ok "PostgreSQL configurado: max_connections=200, tuning para ~200 bancos"
 
 # Open port 5432 in firewall
 if command -v ufw &>/dev/null; then
@@ -371,6 +402,11 @@ echo "  psql postgresql://<role>:<password>@${PUBLIC_HOST}:5432/<database>"
 echo ""
 echo "Firewall:    ufw status"
 echo ""
+echo "Para PROMOVER o primeiro usuário a admin (acessar /api/admin/stats):"
+echo "  cd $APP_DIR"
+echo "  sqlite3 data/neondb.db \"UPDATE User SET role='admin' WHERE email='seu@email.com';\""
+echo ""
 warn "ANOTA a senha do postgres acima — sem ela você não consegue administrar o Postgres."
 echo ""
 info "Pronto! Agora usuários podem se cadastrar, criar projetos e receber connection strings REAIS."
+info "Configurado para até ~200 bancos com tuning automático de PostgreSQL."
