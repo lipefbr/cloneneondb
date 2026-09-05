@@ -20,6 +20,7 @@ import {
   Activity,
   CreditCard,
   BookOpen,
+  Shield,
 } from 'lucide-react';
 import { Logo } from '@/components/landing/nav';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,7 @@ export type User = {
   email: string;
   name: string;
   plan: string;
+  role: string;
   avatarUrl?: string | null;
   company?: string | null;
   createdAt: string;
@@ -162,6 +164,15 @@ export function DashboardShell({
                 <Activity className="h-4 w-4 flex-shrink-0" />
                 Status
               </a>
+              {user.role === 'admin' && (
+                <Link
+                  href="/?view=admin"
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-foreground hover:bg-accent/50 transition-colors font-medium"
+                >
+                  <Shield className="h-4 w-4 flex-shrink-0" />
+                  Painel Admin
+                </Link>
+              )}
             </div>
           </nav>
 

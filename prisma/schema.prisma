@@ -16,14 +16,74 @@ model User {
   passwordHash String
   plan         String     @default("free") // free | pro | enterprise
   role         String     @default("user") // user | admin
+  status       String     @default("active") // active | suspended | banned
   avatarUrl    String?
   company      String?
+  trialEndsAt  DateTime?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
   projects     Project[]
   apiKeys      ApiKey[]
   activities   ActivityLog[]
+  payments     Payment[]
+  invoices     Invoice[]
+}
+
+model Payment {
+  id           String   @id @default(cuid())
+  userId       String
+  amount       Float    // in BRL
+  currency     String   @default("BRL")
+  status       String   @default("pending") // pending | paid | failed | refunded
+  method       String   @default("pix") // pix | card | boleto
+  plan         String   // free | pro | enterprise
+  period       String   @default("monthly") // monthly | yearly
+  provider     String   @default("manual") // manual | stripe | mercadopago | pagseguro
+  providerId   String?  // transaction id from provider
+  createdAt    DateTime @default(now())
+  paidAt       DateTime?
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoices     Invoice[]
+}
+
+model Invoice {
+  id          String   @id @default(cuid())
+  userId      String
+  paymentId   String
+  number      String   @unique
+  amount      Float
+  status      String   @default("pending") // pending | paid | canceled
+  dueDate     DateTime
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payment     Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+}
+
+model PlanConfig {
+  id           String  @id @default(cuid())
+  plan         String  @unique // free | pro | enterprise
+  name         String
+  priceMonthly Float   @default(0)
+  priceYearly  Float   @default(0)
+  active       Boolean @default(true)
+  // Quotas
+  maxProjects          Int @default(1)
+  maxBranchesPerProject Int @default(2)
+  maxStorageMb         Int @default(100)
+  maxConnections       Int @default(5)
+  maxApiKeys           Int @default(2)
+  maxQueryRows         Int @default(1000)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SystemSetting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
 }
 
 model Project {

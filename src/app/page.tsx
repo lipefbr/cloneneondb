@@ -5,9 +5,10 @@ import { useSearchParams } from 'next/navigation';
 import { LandingPage } from '@/components/landing/landing-page';
 import { AuthPage } from '@/components/auth/auth-page';
 import { DashboardPage } from '@/components/dashboard/dashboard-page';
+import { AdminPage } from '@/components/admin/admin-page';
 import { Loader2 } from 'lucide-react';
 
-type View = 'landing' | 'login' | 'register' | 'dashboard';
+type View = 'landing' | 'login' | 'register' | 'dashboard' | 'admin';
 
 function PageContent() {
   const searchParams = useSearchParams();
@@ -15,23 +16,21 @@ function PageContent() {
   const sub = searchParams.get('sub') as string | null;
   const pid = searchParams.get('pid') as string | null;
 
-  // Compute view directly from URL — no state needed
   const currentView: View =
-    view === 'login' || view === 'register' || view === 'dashboard'
+    view === 'login' || view === 'register' || view === 'dashboard' || view === 'admin'
       ? view
       : 'landing';
+
+  if (currentView === 'admin') {
+    return <AdminPage initialSub={sub || undefined} />;
+  }
 
   if (currentView === 'dashboard') {
     return <DashboardPage initialSub={sub || undefined} initialPid={pid || undefined} />;
   }
 
-  if (currentView === 'login') {
-    return <AuthPage mode="login" />;
-  }
-
-  if (currentView === 'register') {
-    return <AuthPage mode="register" />;
-  }
+  if (currentView === 'login') return <AuthPage mode="login" />;
+  if (currentView === 'register') return <AuthPage mode="register" />;
 
   return <LandingPage />;
 }

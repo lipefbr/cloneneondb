@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { hashPassword, verifyPassword, createSession, generateApiKey } from '@/lib/auth';
-import crypto from 'crypto';
+import { verifyPassword, createSession } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,10 +19,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Credenciais inválidas' }, { status: 401 });
     }
 
+    if (user.status === 'banned') {
+      return NextResponse.json({ error: 'Conta banida. Contate o suporte.' }, { status: 403 });
+    }
+    if (user.status === 'suspended') {
+      return NextResponse.json({ error: 'Conta suspensa. Contate o suporte.' }, { status: 403 });
+    }
+
     await createSession(user.id, user.email);
 
     return NextResponse.json({
-      user: { id: user.id, email: user.email, name: user.name, plan: user.plan },
+      user: { id: user.id, email: user.email, name: user.name, plan: user.plan, role: user.role },
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message || 'Erro interno' }, { status: 500 });

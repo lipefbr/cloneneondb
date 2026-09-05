@@ -1,0 +1,10 @@
+import { db } from '../src/lib/db';
+
+async function main() {
+  const users = await db.user.findMany({
+    select: { id: true, email: true, name: true, plan: true, role: true, status: true }
+  });
+  console.log('Users in DB:', JSON.stringify(users, null, 2));
+}
+
+main().catch(console.error).finally(() => db.$disconnect());
